@@ -1,114 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>WebAR距离测量Demo1</title>
-  <style>
-    body { margin: 0; overflow: hidden; }
-    #info { position: absolute; top: 10px; left: 10px; color: #fff; background: rgba(0,0,0,0.5); padding: 8px; z-index: 2; }
-  </style>
+  <title>AR.js 测距 Demo</title>
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ar.js@3.4.2/aframe/build/aframe-ar.js"></script>
 </head>
-<body>
-  <div id="info">点击两次测量距离</div>
-  <script type="module">
-    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
-    import { ARButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/ARButton.js';
-
-    let camera, scene, renderer, controller;
+<body style="margin:0;overflow:hidden;">
+  <a-scene embedded arjs='sourceType: webcam; debugUIEnabled: false;'>
+    <a-marker preset="hiro" id="marker">
+      <!-- 测量点，会在点击时生成 -->
+    </a-marker>
+    <a-entity camera></a-entity>
+  </a-scene>
+  <script>
     let points = [];
-    let pointMeshes = [];
-    let distanceLabel;
+    let marker = document.querySelector('#marker');
+    marker.addEventListener('click', function (evt) {
+      // 获取点击在marker上的位置（近似）
+      let intersection = evt.detail.intersection;
+      if (!intersection) return;
+      points.push(intersection.point);
 
-    init();
-    animate();
+      // 在 marker 上生成一个小球
+      let scene = document.querySelector('a-scene');
+      let sphere = document.createElement('a-sphere');
+      sphere.setAttribute('radius', 0.02);
+      sphere.setAttribute('color', 'red');
+      sphere.setAttribute('position', intersection.point);
+      marker.appendChild(sphere);
 
-    function init() {
-      scene = new THREE.Scene();
-
-      camera = new THREE.PerspectiveCamera();
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.xr.enabled = true;
-      document.body.appendChild(renderer.domElement);
-
-      document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
-
-      // 用于放置距离标签
-      distanceLabel = document.createElement('div');
-      distanceLabel.style.position = 'absolute';
-      distanceLabel.style.color = '#fff';
-      distanceLabel.style.background = 'rgba(0,0,0,0.7)';
-      distanceLabel.style.padding = '8px';
-      distanceLabel.style.display = 'none';
-      distanceLabel.style.zIndex = '3';
-      document.body.appendChild(distanceLabel);
-
-      // 控制器用于处理点击事件
-      controller = renderer.xr.getController(0);
-      controller.addEventListener('select', onSelect);
-      scene.add(controller);
-
-      window.addEventListener('resize', () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-    }
-
-    function onSelect() {
-      const refSpace = renderer.xr.getReferenceSpace();
-      const frame = renderer.xr.getFrame();
-      const session = renderer.xr.getSession();
-      if (!frame || !session) return;
-
-      // 使用hit-test获取真实世界表面坐标
-      session.requestHitTestSource({ space: renderer.xr.getReferenceSpace() }).then(source => {
-        frame.getViewerPose(refSpace).views.forEach(view => {
-          const hitTestResults = frame.getHitTestResults(source);
-          if (hitTestResults.length) {
-            const pose = hitTestResults[0].getPose(refSpace);
-            if (pose) {
-              const pos = pose.transform.position;
-              const vector = new THREE.Vector3(pos.x, pos.y, pos.z);
-              points.push(vector);
-
-              // 显示测量点
-              const geometry = new THREE.SphereGeometry(0.01, 16, 16);
-              const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-              const mesh = new THREE.Mesh(geometry, material);
-              mesh.position.copy(vector);
-              scene.add(mesh);
-              pointMeshes.push(mesh);
-
-              // 如果已经有两点则测量距离
-              if (points.length === 2) {
-                const distance = points[0].distanceTo(points[1]);
-                showDistance(distance);
-              }
-              // 超过两点则重置
-              if (points.length > 2) {
-                points = [];
-                pointMeshes.forEach(m => scene.remove(m));
-                pointMeshes = [];
-                distanceLabel.style.display = 'none';
-              }
-            }
-          }
-        });
-      });
-    }
-
-    function showDistance(distance) {
-      distanceLabel.style.display = 'block';
-      distanceLabel.textContent = `距离: ${(distance * 100).toFixed(2)} cm`;
-      // 简单放在页面左上角，可扩展为动态跟随点
-      distanceLabel.style.top = '50px';
-      distanceLabel.style.left = '10px';
-    }
-
-    function animate() {
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
-    }
+      // 两点测距
+      if (points.length === 2) {
+        let d = Math.sqrt(
+          Math.pow(points[0].x - points[1].x, 2) +
+          Math.pow(points[0].y - points[1].y, 2) +
+          Math.pow(points[0].z - points[1].z, 2)
+        );
+        alert("两点距离：" + (d * 100).toFixed(2) + "cm");
+        points = [];
+        // 清空点
+        marker.querySelectorAll('a-sphere').forEach(n => n.remove());
+      }
+    });
   </script>
 </body>
 </html>
